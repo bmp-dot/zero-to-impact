@@ -1,35 +1,52 @@
 import boto3
 import os
 from lib.iam_operations import create_client_profile
- 
+from lib.instance_repo import add_to_disk
+
 class DestroyLambdaPriEsc:
-    def __init__(self, id, profile, resources, resources_v2):
+    def __init__(self, id, profile, instance, pathToDisk):
         self.id = id
         self.profile = profile
         self.logs =  []
         self.aws_region = 'us-east-1'
-        self.resources = resources
-        self.resources_v2 = resources_v2
+        self.instance = instance
+        self.resources = instance['resources']
+        self.resources_v2 = instance['resourcesV2']
         self.status = None
+        self.filename = os.path.abspath(f"{pathToDisk}/{self.id}.json")
+        self.step = 0
     
     def destroy(self):
         self.status = 'destroy_started'
-        if self.has_index(self.resources, 1):
-            self.delete_iam_user(self.resources[1]['user'])
-        if self.has_index(self.resources, 0):
-            self.delete_policy(self.resources[0]['arn'])
-        if self.has_index(self.resources, 4):
-            self.delete_role(self.resources[4]['arn']['RoleName'], self.resources[3]['arn'])
-        if self.has_index(self.resources, 3):
-            self.delete_policy(self.resources[3]['arn'])
-        if self.has_index(self.resources, 5):
-            self.delete_role(self.resources[5]['arn']['RoleName'], "arn:aws:iam::aws:policy/AdministratorAccess")
-        if self.has_index(self.resources, 6):
-            self.delete_function(self.resources[6]['function'])
-        if getattr(self, 'resources_v2', {}).get('ssm_params'):
-            self.delete_ssm_params(self.resources_v2['ssm_params'])
-        self.delete_zipfile()
-        self.status = 'destroy_complete'
+        try:
+            if self.has_index(self.resources, 1):
+                self.delete_iam_user(self.resources[1]['user'])
+            self._add_to_disk()
+            if self.has_index(self.resources, 0):
+                self.delete_policy(self.resources[0]['arn'])
+            self._add_to_disk()
+            if self.has_index(self.resources, 4):
+                self.delete_role(self.resources[4]['arn']['RoleName'], self.resources[3]['arn'])
+            self._add_to_disk()
+            if self.has_index(self.resources, 3):
+                self.delete_policy(self.resources[3]['arn'])
+            self._add_to_disk()
+            if self.has_index(self.resources, 5):
+                self.delete_role(self.resources[5]['arn']['RoleName'], "arn:aws:iam::aws:policy/AdministratorAccess")
+            self._add_to_disk()
+            if self.has_index(self.resources, 6):
+                self.delete_function(self.resources[6]['function'])
+            self._add_to_disk()
+            if getattr(self, 'resources_v2', {}).get('ssm_params'):
+                self.delete_ssm_params(self.resources_v2['ssm_params'])
+            self.delete_zipfile()
+            self.status = 'destroy_complete'
+            self._add_to_disk()
+        except Exception as e:
+            self.status = 'destroy_failed'
+            self.logs.append(f"Error destroy process failed: {e}")  
+            print(f"Error destroy process failed: {e}")
+            self._add_to_disk()
         
     def delete_iam_user(self, user_name):
         client = create_client_profile('iam', self.aws_region,self.profile)
@@ -48,34 +65,23 @@ class DestroyLambdaPriEsc:
         print(f"User {user_name} deleted successfully.")
 
     def delete_policy(self, policy_arn):
-        try:
-            client = create_client_profile('iam', self.aws_region,self.profile)
-            client.delete_policy(PolicyArn=policy_arn)
-            self.logs.append(f"Policy {policy_arn} deleted successfully.")
-        except Exception as e:
-            self.logs.append(f"Error deleting policy: {e}")
-            print(f"Error deleting policy: {e}")
+        client = create_client_profile('iam', self.aws_region,self.profile)
+        client.delete_policy(PolicyArn=policy_arn)
+        self.logs.append(f"Policy {policy_arn} deleted successfully.")
 
     def delete_role(self, role_name, policy_arn):
-        try:
-            client = create_client_profile('iam', self.aws_region,self.profile)
-            client.detach_role_policy(RoleName=role_name, PolicyArn=policy_arn)
-            client.delete_role(RoleName=role_name)
-            self.logs.append(f"Role {role_name} deleted successfully.")
-        except Exception as e:
-            self.logs.append(f"Error deleting role {role_name}: {e}")
-            print(f"Error deleting role {role_name}: {e}")
+        client = create_client_profile('iam', self.aws_region,self.profile)
+        client.detach_role_policy(RoleName=role_name, PolicyArn=policy_arn)
+        client.delete_role(RoleName=role_name)
+        self.logs.append(f"Role {role_name} deleted successfully.")
 
     def delete_function(self, function_name):
         client = create_client_profile('lambda', self.aws_region,self.profile)
-
-        try:
-            client.delete_function(
-                FunctionName=function_name
-            )
-            self.logs.append(f"Lambda function '{function_name}' deleted successfully.")
-        except Exception as e:
-            self.logs.append(f"Error deleting Lambda function: {e}")
+        
+        client.delete_function(
+            FunctionName=function_name
+        )
+        self.logs.append(f"Lambda function '{function_name}' deleted successfully.")
 
     def delete_zipfile(self):
         file_path = "./api/lambda_privesc/lambda_function.py.zip"
@@ -91,12 +97,11 @@ class DestroyLambdaPriEsc:
    
     def delete_ssm_params(self, ssm_params):
         client = create_client_profile('ssm', self.aws_region,self.profile)
-      
-        try:
-            for param_name in ssm_params:
-                client.delete_parameter(Name=param_name)
-               
-        except boto3.exceptions.Boto3Error as e:
-            print(f"Error deleting parameters: {e}")
         
+        for param_name in ssm_params:
+            client.delete_parameter(Name=param_name)
+               
         self.logs.append(f"SSM Parameters deleted successfully")
+
+    def _add_to_disk(self):
+        add_to_disk(self.filename, self.id,self.status,self.step,self.instance["exchange"],self.instance["logs"],self.instance["resources"], self.instance["resourcesV2"])

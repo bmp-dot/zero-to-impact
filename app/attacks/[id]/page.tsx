@@ -58,24 +58,11 @@ const Page = ({ params }: { params: { id: string } }) => {
       key: AttackStepKey.Attack,
       isActive: true,
     });
+    setResponseAttackStep(null);
   };
 
   const handleDestroy = () => {
-    fetch(`http://localhost:3000/api/${attack.destroyEndpoint}/${username}`)
-      .then((response) => response.json())
-      .then((data: DestroyResponse) => {
-        const response = data.response;
-        console.log(response, "<<< Destroy response");
-
-        if (response.status === "destroy_complete") {
-          setAttackStep({
-            key: AttackStepKey.Finish,
-            isActive: false,
-          });
-        }
-
-        setLogs((prevLogs) => prevLogs.concat(response.message));
-      });
+    fetch(`http://localhost:3000/api/${attack.startDestroyEndpoint}/${username}`);
 
     setAttackStep({
       key: AttackStepKey.Destroy,

@@ -28,7 +28,7 @@ def attack(id, profile, aws_region):
 def get_status(id):
     instance = read_from_desk(id,instance_path)
     if instance == None:
-        return jsonify({"error": "ID not found"}), 404
+        return {"id": id, "status": "", "message": "ID not found"}
 
     exclude_keys = ['resources']
    
@@ -37,19 +37,22 @@ def get_status(id):
      
     return instance
 
-def destroy(id, profile, aws_region):
+def destroy_instance(id):
     try:
-        instance = read_from_desk(id,instance_path)
-        destroy = Destroy(id, profile, aws_region, instance['resources'])
-
-        destroy.destroy()
         filename=f"{instance_path}/{id}.json"
         os.remove(filename)
-        
+            
         print(f"File {filename} has been successfully removed.")
     except FileNotFoundError:
         print(f"File {filename} does not exist, cannot remove.")
     except Exception as e:
         print(f"An error occurred: {e}")
 
+def destroy(id, profile, aws_region):
+    instance = read_from_desk(id, instance_path)
+    if instance is None:
+        return {"id": id, "status": "destroy_complete", "message": "ID not found"}
+    
+    destroy = Destroy(id, profile, aws_region, instance, instance_path)
+    destroy.destroy()
     return {"id": destroy.id, "status": destroy.status, "message": destroy.logs}

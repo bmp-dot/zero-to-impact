@@ -10,7 +10,8 @@ export interface Attack {
   createEndpoint?: string;
   statusEndpoint?: string;
   attackEndpoint?: string;
-  destroyEndpoint?: string;
+  startDestroyEndpoint?: string;
+  completeDestroyEndpoint?: string;
   finalLogsEndpoint?: string;
 }
 
@@ -40,7 +41,8 @@ export const ATTACK_LIST: Attack[] = [
     createEndpoint: "lambda_privesc_create",
     statusEndpoint: "lambda_privesc_status",
     attackEndpoint: "lambda_privesc_attack",
-    destroyEndpoint: "lambda_privesc_destroy"
+    startDestroyEndpoint: "lambda_privesc_start_destroy",
+    completeDestroyEndpoint: "lambda_privesc_complete_destroy",
   },
   {
     id: 2,
@@ -51,7 +53,8 @@ export const ATTACK_LIST: Attack[] = [
     createEndpoint: "policy_ransom_exploit_create",
     statusEndpoint: "policy_ransom_exploit_status",
     attackEndpoint: "policy_ransom_exploit_attack",
-    destroyEndpoint: "policy_ransom_exploit_destroy",
+    startDestroyEndpoint: "policy_ransom_exploit_start_destroy",
+    completeDestroyEndpoint: "policy_ransom_exploit_complete_destroy",
   },
   {
     id: 3,
@@ -62,7 +65,8 @@ export const ATTACK_LIST: Attack[] = [
     createEndpoint: "snapshot_exfil_create",
     statusEndpoint: "snapshot_exfil_status",
     attackEndpoint: "snapshot_exfil_attack",
-    destroyEndpoint: "snapshot_exfil_destroy",
+    startDestroyEndpoint: "snapshot_exfil_start_destroy",
+    completeDestroyEndpoint: "snapshot_exfil_complete_destroy",
   },
 ];
 
@@ -230,12 +234,12 @@ export const ATTACK_PIPELINE: AttackPipeline = {
   ],
   2: [
     {
-      title: "Initial Access",
+      title: "Discovery",
       imageSrc: images.emptyImage,
       description: {
-        title: "Valid Accounts (T1078)",
+        title: "Cloud Service Discovery (T1526)",
         content:
-          "The attacker leverages existing IAM user credentials to gain initial access to the cloud environment.",
+          "The attacker conducts reconnaissance to discover historical IAM permission policies.",
       }
     },
     {
@@ -244,25 +248,7 @@ export const ATTACK_PIPELINE: AttackPipeline = {
       description: {
         title: "Modify Cloud Compute Infrastructure (T1578)",
         content:
-          "Specifically, the attacker exploits the SetDefaultPolicyVersion permission to escalate privileges by activating an old policy version with full admin rights.",
-      }
-    },
-    {
-      title: "Persistence",
-      imageSrc: images.emptyImage,
-      description: {
-        title: "Create Account (T1136)",
-        content:
-          "Utilizing their escalated privileges, the attacker creates a new IAM user with administrative permissions to ensure continued access to the AWS environment.",
-      }
-    },
-    {
-      title: "Discovery",
-      imageSrc: images.emptyImage,
-      description: {
-        title: "Cloud Service Discovery (T1526)",
-        content:
-          "Once they have administrative access, the attacker enumerates S3 buckets to identify potential targets for further actions.",
+          "The attacker escalates privileges by rolling back to a historical IAM policy that grants administrator permissions.",
       }
     },
     {
@@ -271,7 +257,16 @@ export const ATTACK_PIPELINE: AttackPipeline = {
       description: {
         title: "Data Encrypted for Impact (T1486) & Data Destruction (T1485)",
         content:
-          "The attacker encrypts data in the S3 buckets, rendering it inaccessible without the decryption key, and deletes the original objects post-encryption, hindering data recovery and significantly affecting the organization's data availability and integrity.",
+          "The attacker encrypts data in S3 buckets, impacting its availability and integrity. Deleting the original objects from the source bucket after moving them ensures the data cannot be easily recovered.",
+      }
+    },
+    {
+      title: "Exfiltration",
+      imageSrc: images.emptyImage,
+      description: {
+        title: "Transfer Data to Cloud Account (T1537)",
+        content:
+          "The attacker moves encrypted objects to a different S3 bucket controlled by them, effectively exfiltrating the data.",
       }
     },
   ],

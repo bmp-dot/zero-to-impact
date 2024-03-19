@@ -64,126 +64,115 @@ class CreateLambdaPriEsc:
             "ssm_params": []
         }
         self.status = None
-        self.step = 1
+        self.step = 0
         self.filename= os.path.abspath(f"{pathToDisk}/{self.id}.json")
 
     def create(self):
         self.status = 'create_started'
-        self.step = 1
-        user_name = f"sean-{self.id}"
-        policy_arn = self.create_policy(f"sean-policy-{self.id}", iam_policy)
-        self._add_to_disk()
         
-        user = self.create_user(user_name)
-        self._add_to_disk()
+        try:
+            self.step = 1
+            user_name = f"sean-{self.id}"
+            policy_arn = self.create_policy(f"sean-policy-{self.id}", iam_policy)
+            self._add_to_disk()
+            
+            user = self.create_user(user_name)
+            self._add_to_disk()
 
-        self.create_access_key(user_name)
-        self._add_to_disk()
+            self.create_access_key(user_name)
+            self._add_to_disk()
 
-        self.attach_user_policy(user_name, policy_arn)
-        self._add_to_disk()
+            self.attach_user_policy(user_name, policy_arn)
+            self._add_to_disk()
 
-        lambdaManager_policy_document = {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                "Action": "sts:AssumeRole",
-                "Principal": {
-                    "AWS": f"{user['Arn']}"
-                },
-                "Effect": "Allow",
-                "Sid": ""
-                }
-            ]
-        }
+            lambdaManager_policy_document = {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                    "Action": "sts:AssumeRole",
+                    "Principal": {
+                        "AWS": f"{user['Arn']}"
+                    },
+                    "Effect": "Allow",
+                    "Sid": ""
+                    }
+                ]
+            }
 
-        policy_arn = self.create_policy(f"lambdaManager-policy-{user_name}", lambdaManager_policy)
-        self._add_to_disk()
+            policy_arn = self.create_policy(f"lambdaManager-policy-{user_name}", lambdaManager_policy)
+            self._add_to_disk()
 
-        time.sleep(15)
-        self.step = 2
-        role = self.create_role(f"lambdaManager-role-{self.id}", lambdaManager_policy_document, policy_arn)
-        self._add_to_disk()
+            time.sleep(15)
+            
+            self.step = 2
+            role = self.create_role(f"lambdaManager-role-{self.id}", lambdaManager_policy_document, policy_arn)
+            self._add_to_disk()
 
-        self.setp = 3
-        role = self.create_role(f"debug-role-{self.id}", debug_role_document, "arn:aws:iam::aws:policy/AdministratorAccess")
-        self._add_to_disk() 
+            self.step = 3
+            role = self.create_role(f"debug-role-{self.id}", debug_role_document, "arn:aws:iam::aws:policy/AdministratorAccess")
+            self._add_to_disk() 
 
-        self.step = 4
-        self.create_ssm_parameters()
-        self.status = 'create_complete'
-        self._add_to_disk()
+            self.step = 4
+            self.create_ssm_parameters()
+            self.status = 'create_complete'
+            self._add_to_disk()
+        except Exception as e:
+            self.status = 'create_failed'
+            self.logs.append(f"Create failed: {e}")
+            print(f"Create failed: {e}")
+            self._add_to_disk()    
 
     def create_role(self, role_name, policy_document, permissions):
-        try:
-            response = self.client.create_role(
-                RoleName=role_name,
-                AssumeRolePolicyDocument=json.dumps(policy_document)
-            )
+        response = self.client.create_role(
+            RoleName=role_name,
+            AssumeRolePolicyDocument=json.dumps(policy_document)
+        )
 
-            self.exchange.append(response)
-            self.logs.append(f"Role {role_name} created successfully.")
-            self.resources.append({f"role": role_name, "arn": response['Role']})  
+        self.exchange.append(response)
+        self.logs.append(f"Role {role_name} created successfully.")
+        self.resources.append({f"role": role_name, "arn": response['Role']})  
 
-            self.client.attach_role_policy(
-                RoleName=role_name,
-                PolicyArn=permissions
-            )
-            self.logs.append(f"Attached {permissions} policy to '{role_name}' role.")
-        except Exception as e:
-            self.logs.append(f"Error creating role: {e}")
-            print(f"Error creating role: {e}")
-
+        self.client.attach_role_policy(
+            RoleName=role_name,
+            PolicyArn=permissions
+        )
+        self.logs.append(f"Attached {permissions} policy to '{role_name}' role.")
+        
     def create_policy(self, policy_name, policy_document):
-        try:
-            response = self.client.create_policy(
-                PolicyName=policy_name,
-                PolicyDocument=json.dumps(policy_document)
-            )
-            policy_arn = response['Policy']['Arn']
+        response = self.client.create_policy(
+            PolicyName=policy_name,
+            PolicyDocument=json.dumps(policy_document)
+        )
+        policy_arn = response['Policy']['Arn']
 
-            self.exchange.append(response)
-            self.logs.append(f"Policy created successfully: {policy_arn}")
-            self.resources.append({"policy_name": policy_name, "arn": response['Policy']['Arn']})            
-            return policy_arn
-        except Exception as e:
-            self.logs.append(f"Error creating policy: {e}")
-            print(f"Error creating policy: {e}")
-
+        self.exchange.append(response)
+        self.logs.append(f"Policy created successfully: {policy_arn}")
+        self.resources.append({"policy_name": policy_name, "arn": response['Policy']['Arn']})            
+        return policy_arn
+       
     def create_user(self, user_name):
-        try:
-            user = self.client.create_user(UserName=user_name)
-            self.exchange.append(user)
-            self.logs.append(f"User {user_name} created successfully.")
-            self.resources.append({"user": user['User']['UserName'], "details": user['User']})
+        user = self.client.create_user(UserName=user_name)
+        self.exchange.append(user)
+        self.logs.append(f"User {user_name} created successfully.")
+        self.resources.append({"user": user['User']['UserName'], "details": user['User']})
 
-            return user['User']
-        except Exception as e:
-            self.logs.append(f"Error creating user {user_name}: {e}")
-            print(f"Error creating user {user_name}: {e}")
-
+        return user['User']
+         
     def attach_user_policy(self, user_name, policy_arn):
-        try:
-            response = self.client.attach_user_policy(UserName=user_name, PolicyArn=policy_arn)
-            self.exchange.append(response)
-            self.logs.append(f"Policy {policy_arn} attached to user {user_name} successfully.")
-        except Exception as e:
-            print(f"Error attaching policy to user {user_name}: {e}")
-            self.logs.append(f"Error attaching policy to user {user_name}: {e}")
-
+        response = self.client.attach_user_policy(UserName=user_name, PolicyArn=policy_arn)
+        self.exchange.append(response)
+        self.logs.append(f"Policy {policy_arn} attached to user {user_name} successfully.")
+       
     def create_access_key(self, user_name):
-        try:
-            response = self.client.create_access_key(UserName=user_name)
+        response = self.client.create_access_key(UserName=user_name)
 
-            self.exchange.append(response)
-            self.logs.append(f"Access key created for user {user_name}.")
-            self.resources.append({"userAccessKey": user_name, 
-                                            "accessKeyId" : response['AccessKey']['AccessKeyId'], 
-                                            "secretAccessKey": response['AccessKey']['SecretAccessKey']})
-            return response['AccessKey']
-        except Exception as e:
-            print(f"Error creating access key for user {user_name}: {e}")
-
+        self.exchange.append(response)
+        self.logs.append(f"Access key created for user {user_name}.")
+        self.resources.append({"userAccessKey": user_name, 
+                                        "accessKeyId" : response['AccessKey']['AccessKeyId'], 
+                                        "secretAccessKey": response['AccessKey']['SecretAccessKey']})
+        return response['AccessKey']
+         
     def create_ssm_parameters(self):
         client = create_client_profile('ssm', self.aws_region, self.profile)
             

@@ -25,11 +25,12 @@ export interface AttackPipelineStepProps {
   title: string;
   imageSrc?: any;
   description: AttackPipelineStepDescription;
-  state?: "completed" | "in-progress" | "pending";
+  state?: "completed" | "in-progress" | "pending" | "failed";
 }
 
 const AttackPipelineStep = ({ atackStepKey, title, imageSrc, description, state = "pending" }: AttackPipelineStepProps) => {
   const color = (() => {
+    if (state === "failed") return "red";
     if (state === "completed") return "green";
     if (state === "in-progress") return "yellow";
     return "gray";

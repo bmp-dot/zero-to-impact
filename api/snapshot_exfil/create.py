@@ -20,13 +20,14 @@ class Create:
         self.id = id
         self.profile = profile
         self.region = region
-        self.step = 1
+        self.step = 0
         self.status = None
         self.filename = os.path.abspath(f"{pathToDisk}/{self.id}.json")
 
     def create(self):
+        self.status = "create_started"
         try:
-            self.status = "create_started"
+            self.step = 1
             role_name = f"EC2RDSFullAccessRole-{self.id}"
             policy_arn = "arn:aws:iam::aws:policy/AmazonRDSFullAccess"
             role_name = f"EC2RDSFullAccessRole-{self.id}"
@@ -37,17 +38,17 @@ class Create:
             db_engine = "mysql"
             master_username = "ztiadmin"
             master_user_password = f"admin-zti-{self.id}" 
-
-            self.step = 1
-            self._add_to_disk()
             self.create_iam_role_and_profile(role_name, policy_arn)
             self._add_to_disk()
+
             self.step = 2
             self.launch_ec2_instance('ami-0f403e3180720dd7e',"t2.micro", role_name)
             self._add_to_disk()
+
             self.step = 3
             self.create_rds_instance(db_instance_identifier, db_instance_class, db_engine, master_username, master_user_password)
             self._add_to_disk()
+
             self.step = 4
             self.create_rds_snapshot(db_instance_identifier,snapshot_identifier)
             self.status = "create_complete"
@@ -55,6 +56,7 @@ class Create:
         except Exception as e:
             self.status = "create_failed"
             self.log_important(f"Error in create {e}")
+            print(f"Create failed {e}")
             self._add_to_disk()
 
     def _add_to_disk(self):
@@ -66,8 +68,7 @@ class Create:
     def log_important(self, message):
         self.important_logs.append(message)
 
-    def create_rds_snapshot(self, db_instance_identifier, snapshot_identifier):
-         
+    def create_rds_snapshot(self, db_instance_identifier, snapshot_identifier):        
         rds_client = create_client_profile('rds', self.region, self.profile)
         response = rds_client.create_db_snapshot(
             DBSnapshotIdentifier=snapshot_identifier,
@@ -78,7 +79,6 @@ class Create:
         self.log_important(f"RDS snapshot {snapshot_identifier} created for instance {db_instance_identifier}.")
          
     def create_iam_role_and_profile(self, role_name, policy_arn):
-        
         client = create_client_profile('iam', self.region, self.profile)
         iam_role = client.create_role(
             RoleName=role_name,
@@ -104,7 +104,6 @@ class Create:
         add_role_response = client.add_role_to_instance_profile(InstanceProfileName=role_name, RoleName=role_name)
         self.log_api_call('add_role_to_instance_profile', add_role_response)  # Log API call
 
-        
         self.resources['iam_role'] = iam_role['Role']['Arn']
         self.resources['instance_profile'] = role_name
         
@@ -112,7 +111,6 @@ class Create:
         time.sleep(10)
        
     def launch_ec2_instance(self, image_id, instance_type, instance_profile_name):
-         
         user_data_script = """#!/bin/bash
                 cd /tmp
                 sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
@@ -137,7 +135,6 @@ class Create:
         self.log_important(f"EC2 instance {instance_id} launched with profile {instance_profile_name}.")
          
     def create_rds_instance(self, db_instance_identifier, db_instance_class, db_engine, master_username, master_user_password):
-         
         rds_client = create_client_profile('rds', self.region, self.profile)
         db_response = rds_client.create_db_instance(
             DBInstanceIdentifier=db_instance_identifier,

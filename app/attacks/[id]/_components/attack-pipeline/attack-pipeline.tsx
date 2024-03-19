@@ -21,12 +21,29 @@ interface AttackPipelineProps {
 const AttackPipeline = ({ attack, step, status, responseAttackStep, onStartAttack }: AttackPipelineProps) => {
   const [createStep, setCreateStep] = React.useState<number | null>(0);
   const [attackStep, setAttackStep] = React.useState<number | null>(null);
+  const [attackFailed, setAttackFailed] = React.useState<boolean>(false);
 
   const createPipelineSteps = CREATE_INFRASTRUCTURE_PIPELINE[attack.id];
   const attackPipelineSteps = ATTACK_PIPELINE[attack.id];
 
   React.useEffect(() => {
     if (responseAttackStep === null) return;
+
+    // Failed
+    if (status === "status_failed") {
+      setAttackFailed(true);
+    }
+
+    if (status === "create_failed") {
+      setCreateStep(responseAttackStep - 1);
+      setAttackFailed(true);
+    }
+
+    if (status === "attack_failed") {
+      setCreateStep(createPipelineSteps.length); // Set createStep to the last step plus 1 to show the last step as completed
+      setAttackStep(responseAttackStep - 1);
+      setAttackFailed(true);
+    }
 
     // Create
     if (status === "create_started") {
@@ -39,16 +56,18 @@ const AttackPipeline = ({ attack, step, status, responseAttackStep, onStartAttac
 
     // Attack
     if (status === "attack_started") {
+      setCreateStep(createPipelineSteps.length); // Set createStep to the last step plus 1 to show the last step as completed
       setAttackStep(responseAttackStep - 1);
     }
 
     if (status === "attack_complete") {
+      setCreateStep(createPipelineSteps.length); // Set createStep to the last step plus 1 to show the last step as completed
       setAttackStep(responseAttackStep); // Set attackStep to the last step plus 1 to show the last step as completed
     }
   }, [responseAttackStep, status]);
 
   React.useEffect(() => {
-    if (step.key === AttackStepKey.Attack && step.isActive && attackStep === null) {
+    if (step.key === AttackStepKey.Attack && step.isActive && attackStep === null && responseAttackStep === null) {
       setAttackStep(0);
     }
   }, [step]);
@@ -62,6 +81,7 @@ const AttackPipeline = ({ attack, step, status, responseAttackStep, onStartAttac
           setCreateStep(0);
           setAttackStep(null);
           onStartAttack();
+          setAttackFailed(false);
         }}
       />
     );
@@ -77,6 +97,7 @@ const AttackPipeline = ({ attack, step, status, responseAttackStep, onStartAttac
             const StepState = (() => {
               if (createStep === null || createStep < index) return "pending";
               if (createStep > index) return "completed";
+              if (attackFailed && createStep === index) return "failed";
               return "in-progress";
             })();
 
