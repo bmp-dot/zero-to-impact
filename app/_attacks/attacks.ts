@@ -257,7 +257,7 @@ export const ATTACK_PIPELINE: AttackPipeline = {
       description: {
         title: "Data Encrypted for Impact (T1486) & Data Destruction (T1485)",
         content:
-          "The attacker encrypts data in S3 buckets, impacting its availability and integrity. Deleting the original objects from the source bucket after moving them ensures the data cannot be easily recovered.",
+          "This will take while! The attacker encrypts data in S3 buckets, impacting its availability and integrity. Deleting the original objects from the source bucket after moving them ensures the data cannot be easily recovered.",
       }
     },
     {

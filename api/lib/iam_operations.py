@@ -167,14 +167,11 @@ def get_profile_account_id(profile):
     return account_number
 
 def create_iam_policy(client, policy_name, policy_document, exchange, logs, resources):
-    try:
-        response = client.create_policy(
-            PolicyName=policy_name,
-            PolicyDocument=json.dumps(policy_document),
-        )
-        resources['policies'].append(response['Policy']['Arn'])
-        exchange.append({"operation": "create custom policy", "response": response})
+    response = client.create_policy(
+        PolicyName=policy_name,
+        PolicyDocument=json.dumps(policy_document),
+    )
+    resources['policies'].append(response['Policy']['Arn'])
+    exchange.append({"operation": "create custom policy", "response": response})
 
-        return response['Policy']['Arn']
-    except Exception as e:
-        logs.append(f"Error creating policy: {e}")
+    return response['Policy']['Arn']
